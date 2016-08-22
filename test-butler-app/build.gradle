@@ -63,6 +63,7 @@ repositories {
 
 dependencies {
     provided 'com.android.support:support-annotations:23.4.0'
+	compile 'be.shouldit:android-proxy-library:4.2.6'
 }
 
 if (!rootProject.ext.isCi) {

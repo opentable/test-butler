@@ -18,6 +18,8 @@ package com.linkedin.android.testbutler;
 import android.app.IntentService;
 import android.app.KeyguardManager;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -56,6 +58,7 @@ public class ButlerService extends IntentService {
     private RotationChanger rotationChanger;
     private LocationServicesChanger locationServicesChanger;
     private SystemLocaleChanger systemLocaleChanger;
+    private ProxyChangeExecutor proxyChangeExecutor;
 
     private WifiManager.WifiLock wifiLock;
     private PowerManager.WakeLock wakeLock;
@@ -66,6 +69,7 @@ public class ButlerService extends IntentService {
     private boolean restoreAnimations = true;
     private boolean restoreSystemLocale = true;
     private boolean restoreRotation = true;
+    private boolean restoreProxy = true;
 
     private final ButlerApi.Stub butlerApi = new ButlerApi.Stub() {
         @Override
@@ -87,6 +91,28 @@ public class ButlerService extends IntentService {
         @Override
         public boolean setSystemLocale(String language, String country) throws RemoteException {
             return systemLocaleChanger.setSystemLocale(language, country);
+        }
+
+        @Override
+        public boolean setProxy(String ssid, String key, String host, int port, String bypass, boolean resetWifi) throws RemoteException {
+            ProxyChangeParams proxyChangeParams = new ProxyChangeParams();
+            proxyChangeParams.setSsid(ssid);
+            proxyChangeParams.setKey(key);
+            proxyChangeParams.setHost(host);
+            proxyChangeParams.setPort(port);
+            proxyChangeParams.setBypass(bypass);
+            proxyChangeParams.setResetWifi(resetWifi);
+            proxyChangeParams.setClearProxy(false);
+            return proxyChangeExecutor.executeChange(proxyChangeParams);
+        }
+
+        @Override
+        public boolean clearProxy(String ssid, String key) throws RemoteException {
+            ProxyChangeParams proxyChangeParams = new ProxyChangeParams();
+            proxyChangeParams.setSsid(ssid);
+            proxyChangeParams.setKey(key);
+            proxyChangeParams.setClearProxy(true);
+            return proxyChangeExecutor.executeChange(proxyChangeParams);
         }
     };
 
@@ -136,6 +162,9 @@ public class ButlerService extends IntentService {
 
         // Install custom IActivityController to prevent system dialogs from appearing if apps crash or ANR
         NoDialogActivityController.install();
+
+        proxyChangeExecutor = new ProxyChangeExecutor(getApplicationContext());
+        getApplicationContext().registerReceiver(proxyChangeExecutor, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
     }
 
     @Override
@@ -161,6 +190,13 @@ public class ButlerService extends IntentService {
         if (restoreSystemLocale)
             systemLocaleChanger.setSystemLocale(systemLocale);
 
+        // Clear proxy settings
+        if (restoreProxy) {
+            ProxyChangeParams proxyChangeParams = new ProxyChangeParams();
+            proxyChangeParams.setClearProxy(true);
+            proxyChangeExecutor.executeChange(proxyChangeParams);
+        }
+
         // Reset rotation from the accelerometer to whatever it originally was
         if(restoreRotation)
             rotationChanger.restoreRotationState(getContentResolver());
@@ -177,6 +213,12 @@ public class ButlerService extends IntentService {
 
     @Override
     protected void onHandleIntent(@NonNull Intent intent) {
+
+        if (proxyChangeExecutor.validateIntent(intent)) {
+            proxyChangeExecutor.executeChange(new ProxyChangeParams(intent));
+            restoreProxy = false;
+        }
+
         final Bundle extras = intent.getExtras();
         if (extras != null) {
             for (String key : extras.keySet()) {
@@ -211,6 +253,7 @@ public class ButlerService extends IntentService {
                         }
                         restoreRotation = false;
                     default:
+                        break;
                 }
             }
         }

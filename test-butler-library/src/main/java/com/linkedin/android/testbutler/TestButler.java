@@ -233,7 +233,29 @@ public class TestButler {
         }
     }
 
-    private static void verifyApiReady() {
+    public static void setProxy(String ssid, String key, String host, int port, String bypass, boolean resetWifi) {
+        verifyApiReady();
+        try {
+            if (!butlerApi.setProxy(ssid, key, host, port, bypass, resetWifi)) {
+                throw new IllegalStateException("Failed to set proxy!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    public static void clearProxy(String ssid, String key) {
+        verifyApiReady();
+        try {
+            if (!butlerApi.clearProxy(ssid, key)) {
+                throw new IllegalStateException("Failed to clear proxy!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+	private static void verifyApiReady() {
         if (butlerApi == null) {
             throw new IllegalStateException("ButlerService is not started!");
         }
