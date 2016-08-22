@@ -200,6 +200,24 @@ public class TestButler {
     }
 
     /**
+     * Set the system locale for the device. This is useful if the tests require using external
+     * apps in the same language or if the current locale from the {@link Configuration} is not honored.
+     *
+     * @param language the language code for the new locale, as expected by {@link Locale#Locale(String, String)}
+     * @param country  the country code for the new locale, as expected by {@link Locale#Locale(String, String)}
+     */
+    public static void setSystemLocale(@NonNull String language, @NonNull String country) {
+        verifyApiReady();
+        try {
+            if (!butlerApi.setSystemLocale(language, country)) {
+                throw new IllegalStateException("Failed to set system locale!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    /**
      * Change the screen rotation of the emulator
      *
      * @param rotation one of the {@link Rotation} IntDef values

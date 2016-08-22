@@ -27,6 +27,8 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import java.util.Locale;
+
 import static android.provider.Settings.Secure.LOCATION_MODE;
 
 /**
@@ -41,21 +43,25 @@ public class ButlerService extends IntentService {
 
     private static final String TAG = ButlerService.class.getSimpleName();
 
-	/**
+    /**
      * A boolean extra indicating
      */
-    public static final String DISABLE_ANIMATIONS = "disable_animations";
+    public static final String DISABLE_ANIMATIONS = "disable_animations",
+            SYSTEM_LOCALE = "system_locale";
 
     private AnimationDisabler animationDisabler;
     private RotationChanger rotationChanger;
     private LocationServicesChanger locationServicesChanger;
+    private SystemLocaleChanger systemLocaleChanger;
 
     private WifiManager.WifiLock wifiLock;
     private PowerManager.WakeLock wakeLock;
     private KeyguardManager.KeyguardLock keyguardLock;
+    private Locale systemLocale;
 
     private boolean restoreLocationMode = true;
     private boolean restoreAnimations = true;
+    private boolean restoreSystemLocale = true;
 
     private final ButlerApi.Stub butlerApi = new ButlerApi.Stub() {
         @Override
@@ -72,6 +78,11 @@ public class ButlerService extends IntentService {
         @Override
         public boolean setRotation(int rotation) throws RemoteException {
             return rotationChanger.setRotation(getContentResolver(), rotation);
+        }
+
+        @Override
+        public boolean setSystemLocale(String language, String country) throws RemoteException {
+            return systemLocaleChanger.setSystemLocale(language, country);
         }
     };
 
@@ -115,6 +126,10 @@ public class ButlerService extends IntentService {
                 | PowerManager.ON_AFTER_RELEASE, "ButlerWakeLock");
         wakeLock.acquire();
 
+        // Save current locale to restore after tests complete
+        systemLocaleChanger = new SystemLocaleChanger();
+        systemLocale = Locale.getDefault();
+
         // Install custom IActivityController to prevent system dialogs from appearing if apps crash or ANR
         NoDialogActivityController.install();
     }
@@ -137,6 +152,10 @@ public class ButlerService extends IntentService {
         // Reset location services state to whatever it originally was
         if (restoreLocationMode)
             locationServicesChanger.restoreLocationServicesState(getContentResolver());
+
+        // Reset system locale to what it originally was
+        if (restoreSystemLocale)
+            systemLocaleChanger.setSystemLocale(systemLocale);
 
         // Reset rotation from the accelerometer to whatever it originally was
         rotationChanger.restoreRotationState(getContentResolver());
@@ -171,6 +190,18 @@ public class ButlerService extends IntentService {
                         else
                             animationDisabler.enableAnimations();
                         restoreAnimations = false;
+                        break;
+                    case SYSTEM_LOCALE:
+                        try {
+                            String value = extras.getString(SYSTEM_LOCALE);
+                            if (value != null && value.matches("[a-zA-Z]{2}-[a-zA-Z]{2}")) {
+                                String[] locale = value.split("-");
+                                butlerApi.setSystemLocale(locale[0], locale[1]);
+                            }
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        restoreSystemLocale = false;
                         break;
                     default:
                 }
