@@ -32,6 +32,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static android.provider.Settings.Secure.LOCATION_MODE;
+import static android.provider.Settings.System.USER_ROTATION;
 
 /**
  * Main entry point into the Test Butler application.
@@ -64,6 +65,7 @@ public class ButlerService extends IntentService {
     private boolean restoreLocationMode = true;
     private boolean restoreAnimations = true;
     private boolean restoreSystemLocale = true;
+    private boolean restoreRotation = true;
 
     private final ButlerApi.Stub butlerApi = new ButlerApi.Stub() {
         @Override
@@ -160,7 +162,8 @@ public class ButlerService extends IntentService {
             systemLocaleChanger.setSystemLocale(systemLocale);
 
         // Reset rotation from the accelerometer to whatever it originally was
-        rotationChanger.restoreRotationState(getContentResolver());
+        if(restoreRotation)
+            rotationChanger.restoreRotationState(getContentResolver());
 
         // Uninstall our IActivityController to resume normal Activity behavior
         NoDialogActivityController.uninstall();
@@ -200,6 +203,13 @@ public class ButlerService extends IntentService {
                         }
                         restoreSystemLocale = false;
                         break;
+                    case USER_ROTATION:
+                        try {
+                            butlerApi.setRotation(extras.getInt(USER_ROTATION));
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        restoreRotation = false;
                     default:
                 }
             }
