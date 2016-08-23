@@ -27,4 +27,6 @@ interface ButlerApi {
      * Param should be one of Surface.ROTATION_X
      */
     boolean setRotation(int rotation);
+
+    boolean setSystemLocale(String language, String country);
 }

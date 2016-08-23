@@ -27,7 +27,12 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static android.provider.Settings.Secure.LOCATION_MODE;
+import static android.provider.Settings.System.USER_ROTATION;
 
 /**
  * Main entry point into the Test Butler application.
@@ -41,21 +46,26 @@ public class ButlerService extends IntentService {
 
     private static final String TAG = ButlerService.class.getSimpleName();
 
-	/**
+    /**
      * A boolean extra indicating
      */
-    public static final String DISABLE_ANIMATIONS = "disable_animations";
+    public static final String DISABLE_ANIMATIONS = "disable_animations",
+            SYSTEM_LOCALE = "system_locale";
 
     private AnimationDisabler animationDisabler;
     private RotationChanger rotationChanger;
     private LocationServicesChanger locationServicesChanger;
+    private SystemLocaleChanger systemLocaleChanger;
 
     private WifiManager.WifiLock wifiLock;
     private PowerManager.WakeLock wakeLock;
     private KeyguardManager.KeyguardLock keyguardLock;
+    private Locale systemLocale;
 
     private boolean restoreLocationMode = true;
     private boolean restoreAnimations = true;
+    private boolean restoreSystemLocale = true;
+    private boolean restoreRotation = true;
 
     private final ButlerApi.Stub butlerApi = new ButlerApi.Stub() {
         @Override
@@ -72,6 +82,11 @@ public class ButlerService extends IntentService {
         @Override
         public boolean setRotation(int rotation) throws RemoteException {
             return rotationChanger.setRotation(getContentResolver(), rotation);
+        }
+
+        @Override
+        public boolean setSystemLocale(String language, String country) throws RemoteException {
+            return systemLocaleChanger.setSystemLocale(language, country);
         }
     };
 
@@ -115,6 +130,10 @@ public class ButlerService extends IntentService {
                 | PowerManager.ON_AFTER_RELEASE, "ButlerWakeLock");
         wakeLock.acquire();
 
+        // Save current locale to restore after tests complete
+        systemLocaleChanger = new SystemLocaleChanger();
+        systemLocale = Locale.getDefault();
+
         // Install custom IActivityController to prevent system dialogs from appearing if apps crash or ANR
         NoDialogActivityController.install();
     }
@@ -138,8 +157,13 @@ public class ButlerService extends IntentService {
         if (restoreLocationMode)
             locationServicesChanger.restoreLocationServicesState(getContentResolver());
 
+        // Reset system locale to what it originally was
+        if (restoreSystemLocale)
+            systemLocaleChanger.setSystemLocale(systemLocale);
+
         // Reset rotation from the accelerometer to whatever it originally was
-        rotationChanger.restoreRotationState(getContentResolver());
+        if(restoreRotation)
+            rotationChanger.restoreRotationState(getContentResolver());
 
         // Uninstall our IActivityController to resume normal Activity behavior
         NoDialogActivityController.uninstall();
@@ -172,9 +196,38 @@ public class ButlerService extends IntentService {
                             animationDisabler.enableAnimations();
                         restoreAnimations = false;
                         break;
+                    case SYSTEM_LOCALE:
+                        Locale locale = parseLocaleString(extras.getString(SYSTEM_LOCALE));
+                        if (locale != null) {
+                            systemLocaleChanger.setSystemLocale(locale);
+                        }
+                        restoreSystemLocale = false;
+                        break;
+                    case USER_ROTATION:
+                        try {
+                            butlerApi.setRotation(extras.getInt(USER_ROTATION));
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        restoreRotation = false;
                     default:
                 }
             }
         }
+    }
+
+    private Locale parseLocaleString(String localeString) {
+        Pattern pattern = Pattern.compile("([a-z0-9]{2,3})(-r?([A-Z0-9]{2,3})(-(\\w+))?)?");
+        Matcher matcher = pattern.matcher(localeString);
+        if(matcher.matches()) {
+            String language = matcher.group(1);
+            String country = matcher.group(3);
+            String variant = matcher.group(5);
+            return language == null ? null
+                    : country == null ? new Locale(language)
+                    : variant == null ? new Locale(language, country)
+                    : new Locale(language, country, variant);
+        }
+        return null;
     }
 }
