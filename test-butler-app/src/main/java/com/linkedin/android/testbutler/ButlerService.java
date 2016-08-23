@@ -28,6 +28,8 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static android.provider.Settings.Secure.LOCATION_MODE;
 
@@ -192,14 +194,9 @@ public class ButlerService extends IntentService {
                         restoreAnimations = false;
                         break;
                     case SYSTEM_LOCALE:
-                        try {
-                            String value = extras.getString(SYSTEM_LOCALE);
-                            if (value != null && value.matches("[a-zA-Z]{2}-[a-zA-Z]{2}")) {
-                                String[] locale = value.split("-");
-                                butlerApi.setSystemLocale(locale[0], locale[1]);
-                            }
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
+                        Locale locale = parseLocaleString(extras.getString(SYSTEM_LOCALE));
+                        if (locale != null) {
+                            systemLocaleChanger.setSystemLocale(locale);
                         }
                         restoreSystemLocale = false;
                         break;
@@ -207,5 +204,20 @@ public class ButlerService extends IntentService {
                 }
             }
         }
+    }
+
+    private Locale parseLocaleString(String localeString) {
+        Pattern pattern = Pattern.compile("([a-z0-9]{2,3})(-r?([A-Z0-9]{2,3})(-(\\w+))?)?");
+        Matcher matcher = pattern.matcher(localeString);
+        if(matcher.matches()) {
+            String language = matcher.group(1);
+            String country = matcher.group(3);
+            String variant = matcher.group(5);
+            return language == null ? null
+                    : country == null ? new Locale(language)
+                    : variant == null ? new Locale(language, country)
+                    : new Locale(language, country, variant);
+        }
+        return null;
     }
 }
