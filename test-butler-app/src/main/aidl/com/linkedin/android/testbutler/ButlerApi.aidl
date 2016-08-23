@@ -29,4 +29,8 @@ interface ButlerApi {
     boolean setRotation(int rotation);
 
     boolean setSystemLocale(String language, String country);
+
+    boolean setProxy(String ssid, String key, String host, int port, String bypass, boolean resetWifi);
+
+    boolean clearProxy(String ssid, String key);
 }
