@@ -28,5 +28,15 @@ interface ButlerApi {
      */
     boolean setRotation(int rotation);
 
+    boolean setGsmState(boolean enabled);
+
+    boolean grantPermission(String packageName, String permission);
+
+    boolean setSpellCheckerState(boolean enabled);
+
+    boolean setShowImeWithHardKeyboardState(boolean enabled);
+
+    boolean setImmersiveModeConfirmation(boolean enabled);
+
     boolean setSystemLocale(String language, String country);
 }

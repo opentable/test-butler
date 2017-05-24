@@ -101,7 +101,7 @@ public class TestButler {
      * you will need to create a helper method for detecting when your code is running under instrumentation
      * testing and not under monkey testing.
      *
-     * @param context the "target context"; e.g. Context of the app under test (not the test apk context!)
+     * @param context the "target context"; i.e. Context of the app under test (not the test apk context!)
      */
     public static void setup(@NonNull Context context) {
         Intent intent = new Intent();
@@ -129,7 +129,7 @@ public class TestButler {
      * This will handle re-enabling animations on the device, as well as allow system popups to be shown when
      * apps crash or ANR on the emulator.
      *
-     * @param context the "target context"; e.g. Context of the app under test (not the test apk context!)
+     * @param context the "target context"; i.e. Context of the app under test (not the test apk context!)
      */
     public static void teardown(@NonNull Context context) {
         Intent intent = new Intent();
@@ -142,6 +142,20 @@ public class TestButler {
     }
 
     /**
+     * Validate that all animations have been disabled during the {@link #setup(Context)} call.
+     * <p>
+     * This method will fail with an {@link junit.framework.AssertionFailedError} if animations were not disabled
+     * by the {@link #setup(Context)} method. This is useful if you want to immediately halt test execution if
+     * animations could not be disabled by Test Butler, rather than failing gracefully and continuing
+     * to try and run your tests.
+     *
+     * @param context the "target context"; i.e. Context of the app under test (not the test apk context!)
+     */
+    public static void verifyAnimationsDisabled(@NonNull Context context) {
+        AnimationAssertions.verifyAnimationsDisabled(context);
+    }
+
+    /**
      * Enable/disable the Wifi connection on the emulator
      *
      * @param enabled true if wifi should be enabled, false otherwise
@@ -151,6 +165,23 @@ public class TestButler {
         try {
             if (!butlerApi.setWifiState(enabled)) {
                 throw new IllegalStateException("Failed to set wifi state!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    /**
+     * Enable/disable the GSM connection on the emulator
+     *
+     * @param enabled true if GSM should be enabled, false otherwise
+     */
+    @TargetApi(Build.VERSION_CODES.KITKAT)
+    public static void setGsmState(boolean enabled) {
+        verifyApiReady();
+        try {
+            if (!butlerApi.setGsmState(enabled)) {
+                throw new IllegalStateException("Failed to set gsm state!");
             }
         } catch (RemoteException e) {
             throw new IllegalStateException("Failed to communicate with ButlerService", e);
@@ -184,7 +215,7 @@ public class TestButler {
      *
      * @param language the language code for the new locale, as expected by {@link Locale#Locale(String, String)}
      * @param country  the country code for the new locale, as expected by {@link Locale#Locale(String, String)}
-     * @param context  the "target context"; e.g. Context of the app under test (not the test apk context!)
+     * @param context  the "target context"; i.e. Context of the app under test (not the test apk context!)
      */
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
     public static void setLocale(@NonNull String language, @NonNull String country, @NonNull Context context) {
@@ -227,6 +258,81 @@ public class TestButler {
         try {
             if (!butlerApi.setRotation(rotation)) {
                 throw new IllegalStateException("Failed to set rotation!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    /**
+     * Enable or disable the system spell checker
+     *
+     * @param enabled What state the spell checker should be set to
+     */
+    public static void setSpellCheckerState(boolean enabled) {
+        try {
+            if (!butlerApi.setSpellCheckerState(enabled)) {
+                throw new IllegalStateException("Failed to set spell checker!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    /**
+     * Tell the system to prefer the hardware IME
+     *
+     * This method has no effect on api levels below API 22
+     *
+     * You must have your emulator configured with a hardware IME, or this method has no effect
+     * @param enabled Whether to require the hardware keyboard or not
+     */
+    public static void setShowImeWithHardKeyboardState(boolean enabled) {
+        try {
+            if (!butlerApi.setShowImeWithHardKeyboardState(enabled)) {
+                throw new IllegalStateException("Failed to set software keyboard!");
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    /**
+     * A helper method for granting runtime permissions to apps under test on API 23+
+     * <p>
+     * Note: Before API 23, this method is a no-op
+     * <p>
+     * A common use case for this is when running tests from Android Studio where you can't (currently) pass the
+     * -g flag to adb install when installing the app to run tests.
+     *
+     * @param context the "target context"; i.e. Context of the app under test (not the test apk context!)
+     * @see <a href="https://code.google.com/p/android/issues/detail?id=198813">
+     * https://code.google.com/p/android/issues/detail?id=198813</a>
+     */
+    public static void grantPermission(@NonNull Context context, @NonNull String permission) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            Log.i(TAG, "No need to grantPermission before API 23");
+            return;
+        }
+        verifyApiReady();
+        try {
+            if (!butlerApi.grantPermission(context.getPackageName(), permission)) {
+                throw new IllegalArgumentException("Failed to grant permission " + permission);
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to communicate with ButlerService", e);
+        }
+    }
+
+    /**
+     * Enable or disable immersive mode confirmation
+     *
+     * @param enabled What state the immersive mode confirmation should be set to
+     */
+    public static void setImmersiveModeConfirmation(boolean enabled) {
+        try {
+            if (!butlerApi.setImmersiveModeConfirmation(enabled)) {
+                throw new IllegalStateException("Failed to set immersive mode confirmation!");
             }
         } catch (RemoteException e) {
             throw new IllegalStateException("Failed to communicate with ButlerService", e);

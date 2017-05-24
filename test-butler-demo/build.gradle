@@ -1,0 +1,38 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        applicationId "com.linkedin.android.testbutler.demo"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName VERSION_NAME
+
+        testInstrumentationRunner "com.linkedin.android.testbutler.demo.DemoTestRunner"
+    }
+
+    lintOptions {
+        textReport true
+        textOutput 'stdout'
+        abortOnError true
+        disable 'OldTargetApi', 'GradleDependency'
+    }
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    androidTestCompile project(':test-butler-library')
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+
+    compile "com.android.support:appcompat-v7:${rootProject.ext.supportLibrariesVersion}"
+
+    testCompile 'junit:junit:4.12'
+}

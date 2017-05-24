@@ -55,6 +55,11 @@ public class ButlerService extends IntentService {
     private AnimationDisabler animationDisabler;
     private RotationChanger rotationChanger;
     private LocationServicesChanger locationServicesChanger;
+    private GsmDataDisabler gsmDataDisabler;
+    private PermissionGranter permissionGranter;
+    private SpellCheckerDisabler spellCheckerDisabler;
+    private ShowImeWithHardKeyboardHelper showImeWithHardKeyboardHelper;
+    private ImmersiveModeConfirmationDisabler immersiveModeDialogDisabler;
     private SystemLocaleChanger systemLocaleChanger;
 
     private WifiManager.WifiLock wifiLock;
@@ -70,8 +75,13 @@ public class ButlerService extends IntentService {
     private final ButlerApi.Stub butlerApi = new ButlerApi.Stub() {
         @Override
         public boolean setWifiState(boolean enabled) throws RemoteException {
-            WifiManager wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
+            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
             return wifiManager.setWifiEnabled(enabled);
+        }
+
+        @Override
+        public boolean setGsmState(boolean enabled) throws RemoteException {
+            return gsmDataDisabler.setGsmState(ButlerService.this, enabled);
         }
 
         @Override
@@ -82,6 +92,26 @@ public class ButlerService extends IntentService {
         @Override
         public boolean setRotation(int rotation) throws RemoteException {
             return rotationChanger.setRotation(getContentResolver(), rotation);
+        }
+
+        @Override
+        public boolean grantPermission(String packageName, String permission) throws RemoteException {
+            return permissionGranter.grantPermission(ButlerService.this, packageName, permission);
+        }
+
+        @Override
+        public boolean setSpellCheckerState(boolean enabled) {
+            return spellCheckerDisabler.setSpellChecker(getContentResolver(), enabled);
+        }
+
+        @Override
+        public boolean setShowImeWithHardKeyboardState(boolean enabled) {
+            return showImeWithHardKeyboardHelper.setShowImeWithHardKeyboardState(getContentResolver(), enabled);
+        }
+
+        @Override
+        public boolean setImmersiveModeConfirmation(boolean enabled) throws RemoteException {
+            return immersiveModeDialogDisabler.setState(enabled);
         }
 
         @Override
@@ -114,7 +144,7 @@ public class ButlerService extends IntentService {
 
         // Acquire a WifiLock to prevent wifi from turning off and breaking tests
         // NOTE: holding a WifiLock does NOT override a call to setWifiEnabled(false)
-        WifiManager wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
+        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL, "ButlerWifiLock");
         wifiLock.acquire();
 
@@ -129,6 +159,20 @@ public class ButlerService extends IntentService {
                 | PowerManager.ACQUIRE_CAUSES_WAKEUP
                 | PowerManager.ON_AFTER_RELEASE, "ButlerWakeLock");
         wakeLock.acquire();
+
+        gsmDataDisabler = new GsmDataDisabler();
+        permissionGranter = new PermissionGranter();
+
+        spellCheckerDisabler = new SpellCheckerDisabler();
+        spellCheckerDisabler.saveSpellCheckerState(getContentResolver());
+        // Disable spell checker by default
+        spellCheckerDisabler.setSpellChecker(getContentResolver(), false);
+
+        showImeWithHardKeyboardHelper = new ShowImeWithHardKeyboardHelper();
+        showImeWithHardKeyboardHelper.saveShowImeState(getContentResolver());
+        showImeWithHardKeyboardHelper.setShowImeWithHardKeyboardState(getContentResolver(), false);
+
+        immersiveModeDialogDisabler = new ImmersiveModeConfirmationDisabler(getContentResolver());
 
         // Save current locale to restore after tests complete
         systemLocaleChanger = new SystemLocaleChanger();
@@ -167,6 +211,15 @@ public class ButlerService extends IntentService {
 
         // Uninstall our IActivityController to resume normal Activity behavior
         NoDialogActivityController.uninstall();
+
+        // Reset the spell checker to the original state
+        spellCheckerDisabler.restoreSpellCheckerState(getContentResolver());
+
+        // Restore the original keyboard setting
+        showImeWithHardKeyboardHelper.restoreShowImeState(getContentResolver());
+
+        // Restore immersive mode confirmation
+        immersiveModeDialogDisabler.restoreOriginalState();
     }
 
     @Nullable
